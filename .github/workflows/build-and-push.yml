@@ -1,79 +1,45 @@
-name: Build wrk for ARM64 with LuaJIT
+name: Build wrk with LuaJIT for ARM64
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Setup QEMU for multiarch
-      uses: docker/setup-qemu-action@v2
+      - name: Checkout wrk
+        uses: actions/checkout@v3
 
-    - name: Setup Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      - name: Install cross compile tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git build-essential \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            make perl curl bash
 
-    - name: Checkout source code
-      uses: actions/checkout@v3
+      - name: Clone LuaJIT
+        run: |
+          mkdir -p wrk/ThirdParty
+          git clone --branch v2.1 https://github.com/LuaJIT/LuaJIT.git wrk/ThirdParty/LuaJIT-2.1.0-beta3
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential gcc-aarch64-linux-gnu libffi-dev libssl-dev clang llvm nasm git curl bash
+      - name: Build LuaJIT for ARM64
+        run: |
+          cd wrk/ThirdParty/LuaJIT-2.1.0-beta3
+          # 修 Makefile（如果需要的话）
+          sed -i 's/^TARGET=.*$/TARGET=ARM64/' Makefile
+          # 交叉编译
+          make clean || true
+          make CROSS=aarch64-linux-gnu- TARGET=ARM64 HOST_CC=gcc
 
-    - name: Clone wrk repo
-      run: |
-        git clone https://github.com/wg/wrk.git
+      - name: Build wrk for ARM64
+        run: |
+          cd wrk
+          make clean || true
+          make CC=aarch64-linux-gnu-gcc LUAJIT=ThirdParty/LuaJIT-2.1.0-beta3/src/luajit
 
-    - name: Clone LuaJIT
-      run: |
-        git clone https://github.com/LuaJIT/LuaJIT.git wrk/ThirdParty/LuaJIT-2.1.0-beta3
-
-
-    - name: Build LuaJIT for ARM64
-      run: |
-        cd wrk/ThirdParty/LuaJIT-2.1.0-beta3 || exit 1
-
-        # 修正Makefile中的编译目标为 ARM64 (aarch64)
-        sed -i 's/^TARGET=.*$/TARGET=arm64/' Makefile
-        sed -i 's/^XCFLAGS=.*$/XCFLAGS=-O2 -fPIC/' src/Makefile
-
-        # 交叉编译LuaJIT
-        make clean || true
-        make CC=aarch64-linux-gnu-gcc HOST_CC=gcc CROSS=1
-
-    - name: Build wrk for ARM64
-      run: |
-        cd wrk || exit 1
-        make clean || true
-        make CC=aarch64-linux-gnu-gcc LUAJIT=ThirdParty/LuaJIT-2.1.0-beta3/src/luajit
-
-    - name: Upload built binary
-      uses: actions/upload-artifact@v4
-      with:
-        name: wrk-arm64
-        path: wrk/wrk
-
-    - name: Build minimal Docker image with wrk ARM64 binary
-      run: |
-        cat <<EOF > Dockerfile
-        FROM alpine:3.19
-        COPY wrk /usr/local/bin/wrk
-        RUN chmod +x /usr/local/bin/wrk
-        ENTRYPOINT ["wrk"]
-        EOF
-
-        docker build -t bailangvvking/wrk-arm64:latest .
-
-    - name: Upload Docker image as artifact (optional)
-      run: |
-        docker save bailangvvking/wrk-arm64:latest -o wrk-arm64.tar
-
-    - name: Upload docker image artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: wrk-docker-image-arm64
-        path: wrk-arm64.tar
+      - name: Upload wrk binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: wrk-arm64
+          path: wrk/wrk
