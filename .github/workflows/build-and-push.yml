@@ -64,7 +64,7 @@ jobs:
         run: |
           docker buildx build \
             --platform linux/arm64 \
-            -t yourdockerhubusername/wrk:arm64 \
+            -t bailangvvking/wrk:arm64 \
             --push \
             .
 
