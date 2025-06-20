@@ -7,7 +7,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout wrk
+      - name: Checkout pipeline repo
         uses: actions/checkout@v3
 
       - name: Install cross compile tools
@@ -18,17 +18,21 @@ jobs:
             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
             make perl curl bash
 
+      - name: Clone wrk source
+        run: |
+          git clone https://github.com/wg/wrk.git
+
       - name: Clone LuaJIT
         run: |
           mkdir -p wrk/ThirdParty
-          git clone --branch v2.1 https://github.com/LuaJIT/LuaJIT.git wrk/ThirdParty/LuaJIT-2.1.0-beta3
+          git clone --branch v2.1 \
+            https://github.com/LuaJIT/LuaJIT.git \
+            wrk/ThirdParty/LuaJIT-2.1.0-beta3
 
       - name: Build LuaJIT for ARM64
         run: |
           cd wrk/ThirdParty/LuaJIT-2.1.0-beta3
-          # 修 Makefile（如果需要的话）
           sed -i 's/^TARGET=.*$/TARGET=ARM64/' Makefile
-          # 交叉编译
           make clean || true
           make CROSS=aarch64-linux-gnu- TARGET=ARM64 HOST_CC=gcc
 
@@ -36,7 +40,8 @@ jobs:
         run: |
           cd wrk
           make clean || true
-          make CC=aarch64-linux-gnu-gcc LUAJIT=ThirdParty/LuaJIT-2.1.0-beta3/src/luajit
+          make CC=aarch64-linux-gnu-gcc \
+               LUAJIT=ThirdParty/LuaJIT-2.1.0-beta3/src/luajit
 
       - name: Upload wrk binary
         uses: actions/upload-artifact@v4
