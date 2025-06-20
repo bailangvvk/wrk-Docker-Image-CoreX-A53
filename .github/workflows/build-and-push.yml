@@ -1,0 +1,49 @@
+name: Build and Push wrk ARM64 Docker Image
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v3
+
+    - name: Setup cross compiler for ARM64
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu make
+
+    - name: Build wrk for ARM64
+      run: |
+        CC=aarch64-linux-gnu-gcc CFLAGS="-march=armv8-a+crypto -mtune=cortex-a53" make clean
+        CC=aarch64-linux-gnu-gcc CFLAGS="-march=armv8-a+crypto -mtune=cortex-a53" make
+
+    - name: Prepare Dockerfile
+      run: |
+        cat > Dockerfile <<EOF
+        FROM alpine:3.19
+        RUN apk add --no-cache libgcc
+        COPY wrk /usr/local/bin/wrk
+        ENTRYPOINT ["/usr/local/bin/wrk"]
+        CMD ["--help"]
+        EOF
+
+    - name: Build Docker image (ARM64)
+      run: |
+        docker build -t yourdockerhubusername/custom-wrk:arm64 .
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Push Docker image
+      run: |
+        docker push yourdockerhubusername/custom-wrk:arm64
