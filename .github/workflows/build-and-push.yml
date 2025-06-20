@@ -1,61 +1,30 @@
 name: Build and Push wrk ARM64 Docker Image
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # 允许手动触发工作流
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
+    - name: Checkout source
       uses: actions/checkout@v3
 
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          git \
-          libssl-dev \
-          clang \
-          cmake \
-          unzip \
-          qemu-user-static \
-          gcc-aarch64-linux-gnu \
-          g++-aarch64-linux-gnu \
-          binfmt-support \
-          crossbuild-essential-arm64
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v2
 
-    - name: Clone wrk
+    - name: Build wrk ARM64 Docker image
       run: |
-        git clone https://github.com/wg/wrk.git
-        cd wrk
-        make CC=aarch64-linux-gnu-gcc
+        docker buildx create --use
+        docker buildx build --platform linux/arm64 -t yourname/wrk-luajit:arm64 . --push
 
-    - name: Prepare Dockerfile
-      run: |
-        echo '
-        FROM alpine:3.19
-        RUN apk add --no-cache libgcc
-        COPY wrk/wrk /usr/local/bin/wrk
-        ENTRYPOINT ["/usr/local/bin/wrk"]
-        CMD ["--help"]
-        ' > Dockerfile
-
-    - name: Build image (ARM64)
-      run: |
-        docker buildx create --use --name arm64builder || true
-        docker buildx inspect --bootstrap
-        docker buildx build --platform linux/arm64 \
-          -t ${{ secrets.DOCKERHUB_USERNAME }}/wrk:arm64 \
-          --push .
-      
-    - name: Logout Docker
-      run: docker logout
-
-    - name: Login DockerHub
+    - name: Login to Docker Hub
       uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Push Docker image
+      run: |
+        docker push yourname/wrk-luajit:arm64
