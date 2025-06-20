@@ -1,31 +1,43 @@
-# 第一阶段：构建阶段，安装交叉编译工具，编译 LuaJIT 和 wrk
-FROM alpine:3.19 AS builder
+# syntax=docker/dockerfile:1.4
 
-RUN apk add --no-cache \
-    build-base git clang llvm make gcc g++ nasm curl bash perl \
-    aarch64-linux-gnu-gcc aarch64-linux-gnu-g++ linux-headers
+###############################################################################
+# Stage 1: Builder (Ubuntu, cross-compile wrk + LuaJIT for ARM64)
+###############################################################################
+FROM ubuntu:22.04 AS builder
+ENV DEBIAN_FRONTEND=noninteractive
 
-WORKDIR /build
+# 安装交叉编译工具及依赖
+RUN apt-get update && apt-get install -y \
+    build-essential git curl bash perl \
+    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu make nasm \
+  && rm -rf /var/lib/apt/lists/*
 
-# 克隆 wrk 和 LuaJIT
-RUN git clone https://github.com/wg/wrk.git && \
-    git clone --branch v2.1 https://github.com/LuaJIT/LuaJIT.git wrk/ThirdParty/LuaJIT-2.1.0-beta3
+WORKDIR /src
 
-# 编译 LuaJIT for ARM64
-WORKDIR /build/wrk/ThirdParty/LuaJIT-2.1.0-beta3
-RUN sed -i 's/^TARGET=.*$/TARGET=ARM64/' Makefile && \
-    make clean || true && \
+# 拉取 wrk 源码
+RUN git clone --depth=1 https://github.com/wg/wrk.git .
+
+# 拉取 LuaJIT 源码到 ThirdParty
+RUN mkdir -p ThirdParty && \
+    git clone --depth=1 --branch v2.1 https://github.com/LuaJIT/LuaJIT.git ThirdParty/LuaJIT-2.1
+
+# 交叉编译 LuaJIT for ARM64
+WORKDIR /src/ThirdParty/LuaJIT-2.1
+RUN make clean || true && \
     make CROSS=aarch64-linux-gnu- TARGET=ARM64 HOST_CC=gcc
 
-# 编译 wrk，使用刚编译的 LuaJIT
-WORKDIR /build/wrk
+# 交叉编译 wrk，链接上面编译好的 LuaJIT
+WORKDIR /src
 RUN make clean || true && \
-    make CC=aarch64-linux-gnu-gcc LUAJIT=ThirdParty/LuaJIT-2.1.0-beta3/src/luajit
+    make CC=aarch64-linux-gnu-gcc LUAJIT=ThirdParty/LuaJIT-2.1/src/luajit
 
-# 第二阶段：生成最小运行镜像
+###############################################################################
+# Stage 2: Runtime (Alpine, 极简运行镜像)
+###############################################################################
 FROM alpine:3.19
 
-COPY --from=builder /build/wrk/wrk /usr/local/bin/wrk
+# 直接复制编译好的 wrk 二进制
+COPY --from=builder /src/wrk /usr/local/bin/wrk
 
 ENTRYPOINT ["/usr/local/bin/wrk"]
 CMD ["--help"]
