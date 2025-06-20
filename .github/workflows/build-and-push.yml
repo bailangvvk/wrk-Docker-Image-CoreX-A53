@@ -17,7 +17,7 @@ jobs:
       run: |
         git clone --depth=1 https://github.com/wg/wrk.git
         cd wrk
-        CC=aarch64-linux-gnu-gcc CFLAGS="-march=armv8-a+crypto -mtune=cortex-a53" make
+        make CC=aarch64-linux-gnu-gcc HOST_CC=gcc TARGET_SYS=Linux CFLAGS="-march=armv8-a -mtune=cortex-a53"
         mv wrk ../wrk   # 编译后的文件移到上层，便于 Docker 构建使用
 
     - name: Prepare Dockerfile
