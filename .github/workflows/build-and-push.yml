@@ -33,7 +33,7 @@ jobs:
 
     - name: Build Docker image (ARM64)
       run: |
-        docker build -t yourdockerhubusername/custom-wrk:arm64 .
+        docker build -t bailangvvking/custom-wrk:arm64 .
 
     - name: Login to Docker Hub
       uses: docker/login-action@v2
@@ -43,4 +43,4 @@ jobs:
 
     - name: Push Docker image
       run: |
-        docker push yourdockerhubusername/custom-wrk:arm64
+        docker push bailangvvking/custom-wrk:arm64
