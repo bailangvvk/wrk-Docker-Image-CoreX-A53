@@ -1,45 +1,31 @@
-# 使用适合的基础镜像
-FROM --platform=linux/amd64 alpine:3.19 AS build
+# 第一阶段：构建阶段，安装交叉编译工具，编译 LuaJIT 和 wrk
+FROM alpine:3.19 AS builder
 
-# 安装构建工具
-RUN apk update && apk add --no-cache \
-    build-base \
-    git \
-    clang \
-    llvm \
-    make \
-    gcc \
-    g++ \
-    nasm \
-    qemu-user-static \
-    libffi-dev \
-    libgcc \
-    linux-headers \
-    curl \
-    bash \
-    && rm -rf /var/cache/apk/*
+RUN apk add --no-cache \
+    build-base git clang llvm make gcc g++ nasm curl bash perl \
+    aarch64-linux-gnu-gcc aarch64-linux-gnu-g++ linux-headers
 
-# 克隆 wrk 和 LuaJIT 源码
-WORKDIR /wrk
-RUN git clone https://github.com/wg/wrk.git .
+WORKDIR /build
 
-# 构建 wrk 所需的 LuaJIT
-WORKDIR /wrk/obj
-RUN git clone https://github.com/LuaJIT/LuaJIT.git LuaJIT-2.1
-WORKDIR /wrk/obj/LuaJIT-2.1
-RUN make -j$(nproc) && make install
+# 克隆 wrk 和 LuaJIT
+RUN git clone https://github.com/wg/wrk.git && \
+    git clone --branch v2.1 https://github.com/LuaJIT/LuaJIT.git wrk/ThirdParty/LuaJIT-2.1.0-beta3
 
-# 构建 wrk
-WORKDIR /wrk
-RUN make -j$(nproc)
+# 编译 LuaJIT for ARM64
+WORKDIR /build/wrk/ThirdParty/LuaJIT-2.1.0-beta3
+RUN sed -i 's/^TARGET=.*$/TARGET=ARM64/' Makefile && \
+    make clean || true && \
+    make CROSS=aarch64-linux-gnu- TARGET=ARM64 HOST_CC=gcc
 
-# 创建最终的镜像
+# 编译 wrk，使用刚编译的 LuaJIT
+WORKDIR /build/wrk
+RUN make clean || true && \
+    make CC=aarch64-linux-gnu-gcc LUAJIT=ThirdParty/LuaJIT-2.1.0-beta3/src/luajit
+
+# 第二阶段：生成最小运行镜像
 FROM alpine:3.19
-RUN apk add --no-cache libgcc
 
-# 将编译的 wrk 拷贝到最终镜像
-COPY --from=build /wrk/wrk /usr/local/bin/
+COPY --from=builder /build/wrk/wrk /usr/local/bin/wrk
 
-# 设置默认命令
 ENTRYPOINT ["/usr/local/bin/wrk"]
 CMD ["--help"]
