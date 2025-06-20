@@ -1,48 +1,53 @@
-name: Build and Push wrk ARM64 Docker Image
+name: Build LuaJIT ARM64
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  build-and-push:
+  build-arm64:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout source
-      uses: actions/checkout@v3
+      - name: Checkout source code
+        uses: actions/checkout@v3
+        with:
+          repository: LuaJIT/LuaJIT
+          ref: v2.1-20230418-beta3  # 你可以指定具体tag或branch
 
-    - name: Install cross compile tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu make
+      - name: Install cross compilation tools and dependencies
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            make \
+            perl \
+            curl \
+            git
 
-    - name: Clone wrk repo
-      run: git clone https://github.com/wg/wrk.git
+      - name: Apply patch for ARM64 compatible Makefile
+        run: |
+          # 修改 Makefile 中的 ARM64 相关编译标志，替换 -march=armv8-a 和 -mtune=cortex-a53
+          sed -i -E 's/-march=armv8-a/-march=arm64/g' src/Makefile
+          sed -i -E 's/-mtune=cortex-a53/-mtune=generic/g' src/Makefile
 
-    - name: Modify Makefile for ARM64
-      run: |
-        cd wrk
-        sed -i 's/-m64//g' Makefile  # 移除不适合 ARM64 的 -m64 标志
-        CC=aarch64-linux-gnu-gcc CFLAGS="-march=armv8-a -mtune=cortex-a53" make clean || true
-        CC=aarch64-linux-gnu-gcc CFLAGS="-march=armv8-a -mtune=cortex-a53" make
+      - name: Build LuaJIT for ARM64
+        working-directory: ./src
+        run: |
+          make clean || true
+          make \
+            CROSS=aarch64-linux-gnu- \
+            TARGET=ARM64 \
+            CC=aarch64-linux-gnu-gcc \
+            CFLAGS="-march=arm64 -mtune=generic -O2 -fPIC -DLUAJIT_USE_ARM64=1"
 
-    - name: Prepare Dockerfile
-      run: |
-        cat > Dockerfile <<EOF
-        FROM alpine:3.19
-        RUN apk add --no-cache libgcc
-        COPY wrk/wrk /usr/local/bin/wrk
-        ENTRYPOINT ["/usr/local/bin/wrk"]
-        CMD ["--help"]
-        EOF
-
-    - name: Login to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    - name: Build and push Docker image (ARM64)
-      run: |
-        docker buildx create --use
-        docker buildx build --platform linux/arm64 -t yourdockerhubusername/custom-wrk:arm64 --push .
+      - name: Upload compiled libluajit.a
+        uses: actions/upload-artifact@v3
+        with:
+          name: libluajit-arm64
+          path: ./src/libluajit.a
