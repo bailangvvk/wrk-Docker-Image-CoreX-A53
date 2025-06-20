@@ -28,6 +28,11 @@ jobs:
       run: |
         git clone https://github.com/wg/wrk.git
 
+    - name: Clone LuaJIT
+      run: |
+        git clone https://github.com/LuaJIT/LuaJIT.git wrk/ThirdParty/LuaJIT-2.1.0-beta3
+
+
     - name: Build LuaJIT for ARM64
       run: |
         cd wrk/ThirdParty/LuaJIT-2.1.0-beta3 || exit 1
