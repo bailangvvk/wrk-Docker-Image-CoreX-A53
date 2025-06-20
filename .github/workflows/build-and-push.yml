@@ -19,11 +19,12 @@ jobs:
     - name: Clone wrk repo
       run: git clone https://github.com/wg/wrk.git
 
-    - name: Build wrk for ARM64
+    - name: Modify Makefile for ARM64
       run: |
         cd wrk
-        CC=aarch64-linux-gnu-gcc make clean || true
-        CC=aarch64-linux-gnu-gcc make
+        sed -i 's/-m64//g' Makefile  # 移除不适合 ARM64 的 -m64 标志
+        CC=aarch64-linux-gnu-gcc CFLAGS="-march=armv8-a -mtune=cortex-a53" make clean || true
+        CC=aarch64-linux-gnu-gcc CFLAGS="-march=armv8-a -mtune=cortex-a53" make
 
     - name: Prepare Dockerfile
       run: |
@@ -45,4 +46,3 @@ jobs:
       run: |
         docker buildx create --use
         docker buildx build --platform linux/arm64 -t yourdockerhubusername/custom-wrk:arm64 --push .
-
