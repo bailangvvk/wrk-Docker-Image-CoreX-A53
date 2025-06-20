@@ -1,10 +1,7 @@
 name: Build and Push wrk ARM64 Docker Image
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+  workflow_dispatch:   # 只在手动触发时执行
 
 jobs:
   build-and-push:
