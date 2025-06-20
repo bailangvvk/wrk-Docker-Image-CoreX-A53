@@ -8,41 +8,54 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu make git
+        sudo apt-get install -y \
+          build-essential \
+          git \
+          libssl-dev \
+          clang \
+          cmake \
+          unzip \
+          qemu-user-static \
+          gcc-aarch64-linux-gnu \
+          g++-aarch64-linux-gnu \
+          binfmt-support \
+          crossbuild-essential-arm64
 
-    - name: Clone wrk repository
+    - name: Clone wrk
       run: |
-        git clone --depth=1 https://github.com/wg/wrk.git
+        git clone https://github.com/wg/wrk.git
         cd wrk
-        # make CC=aarch64-linux-gnu-gcc HOST_CC=gcc TARGET_SYS=Linux CFLAGS="-march=armv8-a -mtune=cortex-a53"
-        # 使用 aarch64 编译器
-        CC=aarch64-linux-gnu-gcc make clean
-        CC=aarch64-linux-gnu-gcc CFLAGS="-march=armv8-a -mtune=generic" make
-        mv wrk ../wrk   # 编译后的文件移到上层，便于 Docker 构建使用
+        make CC=aarch64-linux-gnu-gcc
 
     - name: Prepare Dockerfile
       run: |
-        cat > Dockerfile <<EOF
+        echo '
         FROM alpine:3.19
         RUN apk add --no-cache libgcc
-        COPY wrk /usr/local/bin/wrk
+        COPY wrk/wrk /usr/local/bin/wrk
         ENTRYPOINT ["/usr/local/bin/wrk"]
         CMD ["--help"]
-        EOF
+        ' > Dockerfile
 
-    - name: Build Docker image (ARM64)
+    - name: Build image (ARM64)
       run: |
-        docker build -t bailangvvking/custom-wrk:arm64 .
+        docker buildx create --use --name arm64builder || true
+        docker buildx inspect --bootstrap
+        docker buildx build --platform linux/arm64 \
+          -t ${{ secrets.DOCKERHUB_USERNAME }}/wrk:arm64 \
+          --push .
+      
+    - name: Logout Docker
+      run: docker logout
 
-    - name: Login to Docker Hub
+    - name: Login DockerHub
       uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    - name: Push Docker image
-      run: |
-        docker push bailangvvking/custom-wrk:arm64
