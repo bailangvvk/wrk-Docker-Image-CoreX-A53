@@ -25,11 +25,6 @@ jobs:
           CC=aarch64-linux-gnu-gcc make clean || true
           CC=aarch64-linux-gnu-gcc make
 
-      - name: Build wrk for ARM64
-        run: |
-          CC=aarch64-linux-gnu-gcc make clean || true
-          CC=aarch64-linux-gnu-gcc make
-
       - name: Prepare Dockerfile
         run: |
           cat > Dockerfile <<EOF
