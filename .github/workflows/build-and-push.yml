@@ -1,50 +1,70 @@
-name: Build wrk with LuaJIT for ARM64
+name: Build & Push wrk (ARM64)
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout pipeline repo
+      # 1. 准备 QEMU + Buildx，多架构支持
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # 2. 登录 Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 3. 检出仓库（我们将在 CI 里生成 Dockerfile，源码也在这里）
+      - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Install cross compile tools
+      # 4. 生成多阶段 Dockerfile（包含拉源码 & 交叉编译）
+      - name: Generate Dockerfile
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git build-essential \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            make perl curl bash
+          cat > Dockerfile << 'EOF'
+          # ========== Builder Stage ==========
+          FROM ubuntu:22.04 AS builder
+          ENV DEBIAN_FRONTEND=noninteractive
+          RUN apt-get update && apt-get install -y \
+              build-essential git curl bash perl \
+              gcc-aarch64-linux-gnu g++-aarch64-linux-gnu make nasm \
+            && rm -rf /var/lib/apt/lists/*
+          WORKDIR /src
+          # 拉取 wrk 源码
+          RUN git clone --depth=1 https://github.com/wg/wrk.git .
+          # 拉取 LuaJIT
+          RUN git clone --depth=1 --branch v2.1 https://github.com/LuaJIT/LuaJIT.git ThirdParty/LuaJIT-2.1
+          # 交叉编译 LuaJIT
+          WORKDIR /src/ThirdParty/LuaJIT-2.1
+          RUN sed -i 's/^TARGET=.*/TARGET=ARM64/' Makefile && \
+              make clean || true && \
+              make CROSS=aarch64-linux-gnu- TARGET=ARM64 HOST_CC=gcc
+          # 编译 wrk
+          WORKDIR /src
+          RUN make clean || true && \
+              make CC=aarch64-linux-gnu-gcc LUAJIT=ThirdParty/LuaJIT-2.1/src/luajit
 
-      - name: Clone wrk source
+          # ========== Runtime Stage ==========
+          FROM alpine:3.19
+          COPY --from=builder /src/wrk /usr/local/bin/wrk
+          ENTRYPOINT ["/usr/local/bin/wrk"]
+          CMD ["--help"]
+          EOF
+
+      # 5. 使用 buildx 构建并推送 ARM64 镜像
+      - name: Build and push ARM64 image
         run: |
-          git clone https://github.com/wg/wrk.git
+          docker buildx build \
+            --platform linux/arm64 \
+            -t yourdockerhubusername/wrk:arm64 \
+            --push \
+            .
 
-      - name: Clone LuaJIT
-        run: |
-          mkdir -p wrk/ThirdParty
-          git clone --branch v2.1 \
-            https://github.com/LuaJIT/LuaJIT.git \
-            wrk/ThirdParty/LuaJIT-2.1.0-beta3
-
-      - name: Build LuaJIT for ARM64
-        run: |
-          cd wrk/ThirdParty/LuaJIT-2.1.0-beta3
-          sed -i 's/^TARGET=.*$/TARGET=ARM64/' Makefile
-          make clean || true
-          make CROSS=aarch64-linux-gnu- TARGET=ARM64 HOST_CC=gcc
-
-      - name: Build wrk for ARM64
-        run: |
-          cd wrk
-          make clean || true
-          make CC=aarch64-linux-gnu-gcc \
-               LUAJIT=ThirdParty/LuaJIT-2.1.0-beta3/src/luajit
-
-      - name: Upload wrk binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: wrk-arm64
-          path: wrk/wrk
