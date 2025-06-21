@@ -45,15 +45,15 @@ jobs:
           file: ./Dockerfile
           platforms: linux/arm64
           tags: ${{ steps.tags.outputs.tags }}
-          build-args:
-            TARGETARCH: arm64
-          cache-from: type=registry,ref=bailangvvking/wrk:arm64
-          cache-to: type=registry,ref=bailangvvking/wrk:arm64,mode=max
-          # 修正 attest 为标准映射格式（对象）
+          # 正确格式：build-args 使用多行字符串
+          build-args: |
+            TARGETARCH=arm64
+          # 正确格式：attest 使用 YAML 对象
           attest:
             type: provenance
             mode: max
-            # builder-id: ${{ github.run_id }}  # 可选，若不需要可注释
+          cache-from: type=registry,ref=bailangvvking/wrk:arm64
+          cache-to: type=registry,ref=bailangvvking/wrk:arm64,mode=max
 
       - name: Verify image
         run: |
