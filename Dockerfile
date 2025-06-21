@@ -51,37 +51,28 @@ RUN export PATH="/usr/bin:$PATH" && \
     echo "=== 编译环境变量 ===" && \
     env | grep -E "PATH|WITH_LUAJIT|SSL_INC|SSL_LIB|CC|LDFLAGS|CFLAGS" && \
     
-    # 2. 检查头文件和库文件存在性
+    # 2. 检查头文件和库文件存在性（增强调试）
     echo "=== LuaJIT头文件 ===" && \
     ls -la /usr/include/luajit-2.1/ | grep -E "lua.h|luajit.h" && \
     
-    echo "=== OpenSSL头文件 ===" && \
-    ls -la /usr/include/aarch64-linux-gnu/openssl/ | grep -E "ssl.h|crypto.h"
-
-# 编译wrk（增强调试输出）
-RUN export PATH="/usr/bin:$PATH" && \
-    # 打印环境变量和文件结构（调试用）
-    echo "=== 编译环境变量 ===" && \
-    echo "PATH: $PATH" && \
-    echo "WITH_LUAJIT: ${WITH_LUAJIT:-not set}" && \
-    echo "SSL_INC: ${SSL_INC:-not set}" && \
-    echo "SSL_LIB: ${SSL_LIB:-not set}" && \
-    echo "=== 关键目录结构 ===" && \
-    ls -la /usr/include/luajit-2.1/ && \
-    ls -la /usr/include/aarch64-linux-gnu/openssl/ && \
-    ls -la /usr/lib/aarch64-linux-gnu/ | grep -i ssl && \
+    echo "=== 实际OpenSSL头文件路径检查 ===" && \
+    # 检查标准路径和架构路径
+    ls -la /usr/include/openssl/ || ls -la /usr/include/aarch64-linux-gnu/openssl/ || \
+    (echo "OpenSSL头文件未找到" && exit 1) && \
     
-    # 显示make命令详细过程（调试用）
-    make clean || true && \
+    echo "=== OpenSSL库文件检查 ===" && \
+    ls -la /usr/lib/aarch64-linux-gnu/libssl* /usr/lib/aarch64-linux-gnu/libcrypto* || \
+    ls -la /usr/lib/libssl* /usr/lib/libcrypto*
+
+# 编译wrk（修正OpenSSL路径）
+RUN make clean || true && \
     make CC=aarch64-linux-gnu-gcc \
          WITH_LUAJIT=/usr \
-         # 增加调试编译参数
-         CFLAGS="-I/usr/include/luajit-2.1 -I/usr/include/aarch64-linux-gnu -g -Wall -Wextra -Werror -v" \
-         LDFLAGS="-L/usr/lib/aarch64-linux-gnu -Wl,-rpath,/usr/lib/aarch64-linux-gnu -lssl -lcrypto -g -Wl,-verbose" \
-         SSL_INC="/usr/include/aarch64-linux-gnu" \
-         SSL_LIB="/usr/lib/aarch64-linux-gnu" \
-         # 显示所有编译命令
-         V=1
+         # 修正OpenSSL头文件路径（移除架构前缀）
+         CFLAGS="-I/usr/include/luajit-2.1 -I/usr/include" \
+         LDFLAGS="-L/usr/lib/aarch64-linux-gnu -Wl,-rpath,/usr/lib/aarch64-linux-gnu -lssl -lcrypto" \
+         # 明确指定OpenSSL路径（移除架构前缀）
+         SSL_IN
 
 # 提取必要的依赖库
 RUN mkdir -p /deps && \
