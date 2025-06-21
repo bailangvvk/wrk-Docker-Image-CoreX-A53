@@ -46,7 +46,13 @@ RUN file /usr/aarch64-linux-gnu/bin/luajit | grep "aarch64"
 
 # 编译 wrk（确保引用符号链接）
 WORKDIR /src
-RUN make clean || true && \
+RUN export PATH="/usr/aarch64-linux-gnu/bin:$PATH" && \
+    echo "=== 编译wrk前的PATH ===" && \
+    echo $PATH && \
+    echo "=== luajit路径验证 ===" && \
+    which luajit && \
+    luajit -v && \
+    make clean || true && \
     make CC=${CC} \
          WITH_LUAJIT=/usr/aarch64-linux-gnu \
          LDFLAGS="-L/usr/aarch64-linux-gnu/lib -Wl,-rpath,/usr/aarch64-linux-gnu/lib" \
