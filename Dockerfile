@@ -10,9 +10,6 @@ ENV CROSS_COMPILE=aarch64-linux-gnu-
 ENV CC=${CROSS_COMPILE}gcc
 ENV LD=${CROSS_COMPILE}ld
 ENV STRIP=${CROSS_COMPILE}strip
-# 新增：设置 Lua 环境变量，确保找到 jit 模块
-ENV LUA_PATH="/usr/aarch64-linux-gnu/share/luajit-2.1.0-beta3/jit/?.lua;;"
-ENV LUA_CPATH="/usr/aarch64-linux-gnu/lib/lua/5.1/?.so;;"
 
 # 安装交叉编译工具及依赖
 RUN apt-get update && apt-get install -y \
@@ -30,32 +27,29 @@ RUN git clone --depth=1 https://github.com/wg/wrk.git .
 RUN mkdir -p ThirdParty && \
     git clone --depth=1 --branch v2.1.0-beta3 https://github.com/LuaJIT/LuaJIT.git ThirdParty/LuaJIT-2.1.0-beta3
 
-# 交叉编译 LuaJIT 2.1.0-beta3（修改安装路径）
+# 交叉编译 LuaJIT 2.1.0-beta3（确保生成 ARM64 架构）
 WORKDIR /src/ThirdParty/LuaJIT-2.1.0-beta3
 RUN make clean || true && \
-    make HOST_CC="gcc" CROSS="${CROSS_COMPILE}" TARGET_SYS=Linux TARGET=arm64 && \
-    # 安装到系统默认路径，避免路径问题
+    # 明确指定 TARGET_ARCH=arm64
+    make HOST_CC="gcc" CROSS="${CROSS_COMPILE}" TARGET_SYS=Linux TARGET_ARCH=arm64 && \
     make install PREFIX=/usr && \
-    # 创建符号链接
     ln -sf /usr/bin/luajit-2.1.0-beta3 /usr/bin/luajit
 
-# 验证 LuaJIT 安装
+# 验证 LuaJIT 安装（分开验证每个步骤）
 RUN /usr/bin/luajit -v | grep "LuaJIT 2.1.0-beta3" && \
-    file /usr/bin/luajit | grep "aarch64" && \
-    # 检查 jit 模块是否存在
+    echo "=== LuaJIT 文件架构 ===" && \
+    file /usr/bin/luajit && \
+    # 同时检查 "aarch64" 和 "ARM-64" 两种可能的输出
+    (file /usr/bin/luajit | grep "aarch64" || file /usr/bin/luajit | grep "ARM-64") && \
+    echo "=== JIT 模块列表 ===" && \
     ls -la /usr/share/luajit-2.1.0-beta3/jit/
 
-# 验证 LuaJIT 安装（版本和模块路径）
-RUN /usr/aarch64-linux-gnu/bin/luajit -v | grep "LuaJIT 2.1.0-beta3"
-RUN file /usr/aarch64-linux-gnu/bin/luajit | grep "aarch64"
-RUN ls -la /usr/aarch64-linux-gnu/share/luajit-2.1.0-beta3/jit/  # 检查 jit 模块是否存在
-
-# 编译 wrk（简化环境变量，使用系统默认路径）
+# 编译 wrk（使用系统路径的 LuaJIT）
 WORKDIR /src
 RUN export PATH="/usr/bin:$PATH" && \
     echo "=== 编译wrk前的PATH ===" && echo $PATH && \
     which luajit && luajit -v && \
-    # 验证 jit 模块可访问
+    # 再次验证 jit 模块
     luajit -e "require('jit') print('JIT module loaded')" && \
     make clean || true && \
     make CC=${CC} \
@@ -77,22 +71,22 @@ RUN mkdir -p /deps && \
 ###############################################################################
 FROM alpine:3.19
 
-# 安装最小化运行时依赖（修正包名）
+# 安装最小化运行时依赖
 RUN apk add --no-cache \
     libgcc libstdc++ \
-    openssl
+    openssl  # 或使用 libssl3 libcrypto3，根据 Alpine 3.19 实际包名
 
 # 复制编译好的 wrk 和依赖库
 COPY --from=builder /deps/ /usr/local/bin/
 
-# 同步 LuaJIT 模块（确保 jit 可用）
-COPY --from=builder /usr/aarch64-linux-gnu/share/luajit-2.1.0-beta3/jit/ /usr/local/share/luajit-2.1.0-beta3/jit/
-COPY --from=builder /usr/aarch64-linux-gnu/lib/lua/5.1/ /usr/local/lib/lua/5.1/
+# 同步 LuaJIT 模块
+COPY --from=builder /usr/share/luajit-2.1.0-beta3/jit/ /usr/local/share/luajit-2.1.0-beta3/jit/
+COPY --from=builder /usr/lib/lua/5.1/ /usr/local/lib/lua/5.1/
 
-# 验证镜像（新增 OpenSSL 库检查）
+# 验证镜像
 RUN /usr/local/bin/wrk -v | grep "LuaJIT" && \
     file /usr/local/bin/wrk | grep "aarch64" && \
-    echo "=== OpenSSL 库检查 ===" && \
+    # 验证 OpenSSL 库
     ls -la /lib/libssl* /lib/libcrypto* && \
     # 验证 LuaJIT jit 模块
     /usr/local/bin/luajit -e "require('jit') print('JIT module loaded')"
