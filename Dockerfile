@@ -44,17 +44,13 @@ RUN /usr/bin/luajit -v | grep "LuaJIT 2.1.0-beta3" && \
     echo "=== JIT 模块列表 ===" && \
     ls -la /usr/share/luajit-2.1.0-beta3/jit/
 
-# 编译 wrk（使用系统路径的 LuaJIT）
+# 编译 wrk（修正 OpenSSL 链接参数）
 WORKDIR /src
 RUN export PATH="/usr/bin:$PATH" && \
-    echo "=== 编译wrk前的PATH ===" && echo $PATH && \
-    which luajit && luajit -v && \
-    # 再次验证 jit 模块
-    luajit -e "require('jit') print('JIT module loaded')" && \
     make clean || true && \
-    make CC=${CC} \
+    make CC=aarch64-linux-gnu-gcc \
          WITH_LUAJIT=/usr \
-         LDFLAGS="-L/usr/lib -Wl,-rpath,/usr/lib" \
+         LDFLAGS="-L/usr/lib/aarch64-linux-gnu -Wl,-rpath,/usr/lib/aarch64-linux-gnu -lssl -lcrypto" \
          CFLAGS="-I/usr/include/luajit-2.1 -I/usr/include/aarch64-linux-gnu" \
          SSL_INC="/usr/include/aarch64-linux-gnu" \
          SSL_LIB="/usr/lib/aarch64-linux-gnu"
