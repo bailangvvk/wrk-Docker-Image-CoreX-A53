@@ -31,20 +31,20 @@ RUN mkdir -p ThirdParty && \
 RUN ls -la ThirdParty/LuaJIT-2.1.0-beta3/  # 新增：确认 Makefile 存在
 RUN cat ThirdParty/LuaJIT-2.1.0-beta3/Makefile 2>/dev/null || echo "Makefile not found!"
 
-# 交叉编译 LuaJIT
+# 交叉编译 LuaJIT 并创建符号链接
 WORKDIR /src/ThirdParty/LuaJIT-2.1.0-beta3
 RUN make clean || true && \
     make HOST_CC="gcc" CROSS="${CROSS_COMPILE}" TARGET_SYS=Linux TARGET=arm64 && \
-    make install PREFIX=/usr/aarch64-linux-gnu
+    make install PREFIX=/usr/aarch64-linux-gnu && \
+    # 关键修改：创建 luajit 符号链接
+    ln -sf /usr/aarch64-linux-gnu/bin/luajit-2.1.0-beta3 /usr/aarch64-linux-gnu/bin/luajit
 
-# 验证 LuaJIT 版本和架构
+# 验证 LuaJIT 版本（现在使用符号链接）
 RUN /usr/aarch64-linux-gnu/bin/luajit --version | grep "LuaJIT 2.1.0-beta3"
 RUN file /usr/aarch64-linux-gnu/bin/luajit | grep "aarch64"
 
-# 准备 wrk 编译环境
+# 编译 wrk（确保引用符号链接）
 WORKDIR /src
-
-# 编译 wrk，明确指定 LuaJIT 相关参数
 RUN make clean || true && \
     make CC=${CC} \
          WITH_LUAJIT=/usr/aarch64-linux-gnu \
