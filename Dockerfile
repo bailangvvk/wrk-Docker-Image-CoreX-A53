@@ -30,33 +30,38 @@ RUN git clone --depth=1 https://github.com/wg/wrk.git .
 RUN mkdir -p ThirdParty && \
     git clone --depth=1 --branch v2.1.0-beta3 https://github.com/LuaJIT/LuaJIT.git ThirdParty/LuaJIT-2.1.0-beta3
 
-# 交叉编译 LuaJIT 2.1.0-beta3
+# 交叉编译 LuaJIT 2.1.0-beta3（修改安装路径）
 WORKDIR /src/ThirdParty/LuaJIT-2.1.0-beta3
 RUN make clean || true && \
     make HOST_CC="gcc" CROSS="${CROSS_COMPILE}" TARGET_SYS=Linux TARGET=arm64 && \
-    make install PREFIX=/usr/aarch64-linux-gnu && \
-    # 创建符号链接以便识别为 luajit
-    ln -sf /usr/aarch64-linux-gnu/bin/luajit-2.1.0-beta3 /usr/aarch64-linux-gnu/bin/luajit
+    # 安装到系统默认路径，避免路径问题
+    make install PREFIX=/usr && \
+    # 创建符号链接
+    ln -sf /usr/bin/luajit-2.1.0-beta3 /usr/bin/luajit
+
+# 验证 LuaJIT 安装
+RUN /usr/bin/luajit -v | grep "LuaJIT 2.1.0-beta3" && \
+    file /usr/bin/luajit | grep "aarch64" && \
+    # 检查 jit 模块是否存在
+    ls -la /usr/share/luajit-2.1.0-beta3/jit/
 
 # 验证 LuaJIT 安装（版本和模块路径）
 RUN /usr/aarch64-linux-gnu/bin/luajit -v | grep "LuaJIT 2.1.0-beta3"
 RUN file /usr/aarch64-linux-gnu/bin/luajit | grep "aarch64"
 RUN ls -la /usr/aarch64-linux-gnu/share/luajit-2.1.0-beta3/jit/  # 检查 jit 模块是否存在
 
-# 编译 wrk（添加完整路径和环境变量）
+# 编译 wrk（简化环境变量，使用系统默认路径）
 WORKDIR /src
-RUN export PATH="/usr/aarch64-linux-gnu/bin:$PATH" && \
-    export LUA_PATH="/usr/aarch64-linux-gnu/share/luajit-2.1.0-beta3/jit/?.lua;;" && \
-    export LUA_CPATH="/usr/aarch64-linux-gnu/lib/lua/5.1/?.so;;" && \
+RUN export PATH="/usr/bin:$PATH" && \
     echo "=== 编译wrk前的PATH ===" && echo $PATH && \
-    echo "=== LUA_PATH ===" && echo $LUA_PATH && \
-    echo "=== LUA_CPATH ===" && echo $LUA_CPATH && \
     which luajit && luajit -v && \
+    # 验证 jit 模块可访问
+    luajit -e "require('jit') print('JIT module loaded')" && \
     make clean || true && \
     make CC=${CC} \
-         WITH_LUAJIT=/usr/aarch64-linux-gnu \
-         LDFLAGS="-L/usr/aarch64-linux-gnu/lib -Wl,-rpath,/usr/aarch64-linux-gnu/lib" \
-         CFLAGS="-I/usr/aarch64-linux-gnu/include/luajit-2.1 -I/usr/include/aarch64-linux-gnu" \
+         WITH_LUAJIT=/usr \
+         LDFLAGS="-L/usr/lib -Wl,-rpath,/usr/lib" \
+         CFLAGS="-I/usr/include/luajit-2.1 -I/usr/include/aarch64-linux-gnu" \
          SSL_INC="/usr/include/aarch64-linux-gnu" \
          SSL_LIB="/usr/lib/aarch64-linux-gnu"
 
