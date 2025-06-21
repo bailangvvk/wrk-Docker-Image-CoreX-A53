@@ -72,23 +72,25 @@ RUN mkdir -p /deps && \
 ###############################################################################
 FROM alpine:3.19
 
-# 安装最小化运行时依赖
+# 安装最小化运行时依赖（修正包名）
 RUN apk add --no-cache \
     libgcc libstdc++ \
-    openssl-libs
+    openssl
 
 # 复制编译好的 wrk 和依赖库
 COPY --from=builder /deps/ /usr/local/bin/
 
-# 同步 LuaJIT 的 jit 模块到运行时
+# 同步 LuaJIT 模块（确保 jit 可用）
 COPY --from=builder /usr/aarch64-linux-gnu/share/luajit-2.1.0-beta3/jit/ /usr/local/share/luajit-2.1.0-beta3/jit/
 COPY --from=builder /usr/aarch64-linux-gnu/lib/lua/5.1/ /usr/local/lib/lua/5.1/
 
-# 验证镜像
+# 验证镜像（新增 OpenSSL 库检查）
 RUN /usr/local/bin/wrk -v | grep "LuaJIT" && \
     file /usr/local/bin/wrk | grep "aarch64" && \
-    # 验证 jit 模块存在
-    ls -la /usr/local/share/luajit-2.1.0-beta3/jit/
+    echo "=== OpenSSL 库检查 ===" && \
+    ls -la /lib/libssl* /lib/libcrypto* && \
+    # 验证 LuaJIT jit 模块
+    /usr/local/bin/luajit -e "require('jit') print('JIT module loaded')"
 
 ENTRYPOINT ["/usr/local/bin/wrk"]
 CMD ["--help"]
