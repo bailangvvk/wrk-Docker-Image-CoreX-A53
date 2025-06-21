@@ -33,7 +33,7 @@ RUN mkdir -p deps/ThirdParty/LuaJIT-2.1/src && \
     cd deps/ThirdParty/LuaJIT-2.1/src && \
     zip luajit.zip luajit.bin
 
-# 编译 wrk，Makefile 会找到并使用生成的 luajit.zip
+# 编译 wrk，确保使用正确的路径，不会拼接多余的 deps/ 前缀
 RUN make clean || true && \
     make CC=aarch64-linux-gnu-gcc LUAJIT=deps/ThirdParty/LuaJIT-2.1/src/luajit.zip
 
