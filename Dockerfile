@@ -35,14 +35,11 @@ RUN make clean || true && \
     make install PREFIX=/usr && \
     ln -sf /usr/bin/luajit-2.1.0-beta3 /usr/bin/luajit
 
-# 验证 LuaJIT 安装（修正命令格式）
-RUN /usr/bin/luajit -v | grep "LuaJIT 2.1.0-beta3" && \
-    echo "=== LuaJIT 文件架构 ===" && \
-    file -L /usr/bin/luajit && \
-    # 用引号包裹括号内的命令，明确为 shell 表达式
-    sh -c 'file -L /usr/bin/luajit | grep -q "aarch64" || file -L /usr/bin/luajit | grep -q "ARM-64"' && \
-    echo "=== JIT 模块列表 ===" && \
-    ls -la /usr/share/luajit-2.1.0-beta3/jit/
+# 编译前验证LuaJIT
+RUN export PATH="/usr/bin:$PATH" && \
+    echo "=== 验证LuaJIT安装 ===" && \
+    luajit -v && \
+    luajit -e "require('jit')" || (echo "LuaJIT模块缺失" && exit 1) && \
 
 # 编译wrk前的详细调试检查
 WORKDIR /src
@@ -64,16 +61,15 @@ RUN export PATH="/usr/bin:$PATH" && \
     ls -la /usr/lib/aarch64-linux-gnu/libssl* /usr/lib/aarch64-linux-gnu/libcrypto* || \
     ls -la /usr/lib/libssl* /usr/lib/libcrypto*
 
-# 编译wrk（修正命令格式与参数）
-RUN make clean || true && \
+# 编译wrk（修正LuaJIT路径）
+RUN export PATH="/usr/bin:$PATH" && \
+    make clean || true && \
     make CC=aarch64-linux-gnu-gcc \
          WITH_LUAJIT=/usr \
          CFLAGS="-I/usr/include/luajit-2.1 -I/usr/include" \
          LDFLAGS="-L/usr/lib/aarch64-linux-gnu -Wl,-rpath,/usr/lib/aarch64-linux-gnu -lssl -lcrypto" \
-         # 明确指定SSL相关变量（补全参数）
          SSL_INC="/usr/include" \
          SSL_LIB="/usr/lib/aarch64-linux-gnu" \
-         # 显示详细编译过程（调试用）
          V=1
 
 # 提取必要的依赖库
