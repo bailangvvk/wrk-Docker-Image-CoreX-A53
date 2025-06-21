@@ -26,21 +26,20 @@ WORKDIR /src/ThirdParty/LuaJIT-2.1
 RUN make clean || true && \
     make CROSS=aarch64-linux-gnu- TARGET=ARM64 HOST_CC=gcc
 
-# 切回 wrk 源码根目录
+# 在 /src 目录下生成 luajit.zip，Makefile 会用它
 WORKDIR /src
+RUN mkdir -p deps/ThirdParty/LuaJIT-2.1/src && \
+    cp ThirdParty/LuaJIT-2.1/src/luajit deps/ThirdParty/LuaJIT-2.1/src/luajit.bin && \
+    cd deps/ThirdParty/LuaJIT-2.1/src && \
+    zip luajit.zip luajit.bin
 
-# DEBUG STEP: 打印当前路径、目录结构、Makefile 中的 LUAJIT 相关片段
-RUN echo "=== DEBUG: CURRENT DIR ===" && pwd && \
-    echo "=== DEBUG: RECURSIVE LS ===" && ls -R . && \
-    echo "=== DEBUG: ENV LUAJIT VAR ===" && \
-      echo "LUAJIT set to: $LUAJIT" || true && \
-    echo "=== DEBUG: Makefile LUAJIT references ===" && \
-      grep -R "LUAJIT" Makefile || true
+# 调试：检查 deps 目录，确保文件存在
+RUN ls -R deps/ThirdParty/LuaJIT-2.1/src
 
-# DEBUG STEP: 检查 deps 目录下的文件
-RUN echo "=== DEBUG: deps directory ===" && ls -R deps/ThirdParty/LuaJIT-2.1/src || true
+# 手动调整 LUAJIT 变量，确保正确路径
+RUN echo "Using LUAJIT: deps/ThirdParty/LuaJIT-2.1/src/luajit.zip"
 
-# 真正编译 wrk
+# 编译 wrk，确保使用正确的路径
 RUN make clean || true && \
     make CC=aarch64-linux-gnu-gcc LUAJIT=deps/ThirdParty/LuaJIT-2.1/src/luajit.zip
 
