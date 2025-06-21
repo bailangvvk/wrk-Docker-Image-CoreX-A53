@@ -11,12 +11,12 @@ ENV CC=${CROSS_COMPILE}gcc
 ENV LD=${CROSS_COMPILE}ld
 ENV STRIP=${CROSS_COMPILE}strip
 
-# 安装交叉编译工具及依赖（修正多行格式）
+# 安装交叉编译工具及依赖（纯净格式）
 RUN apt-get update && apt-get install -y \
     build-essential git curl bash perl \
     gcc-aarch64-linux-gnu g++-aarch64-linux-gnu make nasm zip \
     libssl-dev:arm64 \
-    file \  # 关键修改：行末添加反斜杠，删除多余字符
+    file \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
