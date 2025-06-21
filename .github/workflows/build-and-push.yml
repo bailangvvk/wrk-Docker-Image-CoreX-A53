@@ -47,12 +47,13 @@ jobs:
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
             TARGETARCH=arm64
-          # 关键修正：attest 参数必须是正确缩进的 YAML 对象
+          cache-from: type=registry,ref=bailangvvking/wrk:arm64
+          # 关键修正：cache-to 必须是字符串值，而非对象
+          cache-to: type=registry,ref=bailangvvking/wrk:arm64,mode=max
+          # attest 作为独立参数，保持正确缩进
           attest:
             type: provenance
             mode: max
-          cache-from: type=registry,ref=bailangvvking/wrk:arm64
-          cache-to: type=registry,ref=bailangvvking/wrk:arm64,mode=max
 
       - name: Verify image
         run: |
