@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y \
     build-essential git curl bash perl \
     gcc-aarch64-linux-gnu g++-aarch64-linux-gnu make nasm zip \
     libssl-dev:arm64 \
+    file
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
