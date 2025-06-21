@@ -35,11 +35,12 @@ RUN make clean || true && \
     make install PREFIX=/usr && \
     ln -sf /usr/bin/luajit-2.1.0-beta3 /usr/bin/luajit
 
-# 验证 LuaJIT 安装（添加 -L 选项跟随符号链接）
+# 验证 LuaJIT 安装（修正命令格式）
 RUN /usr/bin/luajit -v | grep "LuaJIT 2.1.0-beta3" && \
     echo "=== LuaJIT 文件架构 ===" && \
-    file -L /usr/bin/luajit && \  # 添加 -L 选项跟随符号链接
-    (file -L /usr/bin/luajit | grep "aarch64" || file -L /usr/bin/luajit | grep "ARM-64") && \
+    file -L /usr/bin/luajit && \
+    # 用引号包裹括号内的命令，明确为 shell 表达式
+    sh -c 'file -L /usr/bin/luajit | grep -q "aarch64" || file -L /usr/bin/luajit | grep -q "ARM-64"' && \
     echo "=== JIT 模块列表 ===" && \
     ls -la /usr/share/luajit-2.1.0-beta3/jit/
 
