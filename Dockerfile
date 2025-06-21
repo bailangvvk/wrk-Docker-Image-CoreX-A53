@@ -64,15 +64,17 @@ RUN export PATH="/usr/bin:$PATH" && \
     ls -la /usr/lib/aarch64-linux-gnu/libssl* /usr/lib/aarch64-linux-gnu/libcrypto* || \
     ls -la /usr/lib/libssl* /usr/lib/libcrypto*
 
-# 编译wrk（修正OpenSSL路径）
+# 编译wrk（修正命令格式与参数）
 RUN make clean || true && \
     make CC=aarch64-linux-gnu-gcc \
          WITH_LUAJIT=/usr \
-         # 修正OpenSSL头文件路径（移除架构前缀）
          CFLAGS="-I/usr/include/luajit-2.1 -I/usr/include" \
          LDFLAGS="-L/usr/lib/aarch64-linux-gnu -Wl,-rpath,/usr/lib/aarch64-linux-gnu -lssl -lcrypto" \
-         # 明确指定OpenSSL路径（移除架构前缀）
-         SSL_IN
+         # 明确指定SSL相关变量（补全参数）
+         SSL_INC="/usr/include" \
+         SSL_LIB="/usr/lib/aarch64-linux-gnu" \
+         # 显示详细编译过程（调试用）
+         V=1
 
 # 提取必要的依赖库
 RUN mkdir -p /deps && \
