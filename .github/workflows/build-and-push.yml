@@ -48,12 +48,9 @@ jobs:
           build-args: |
             TARGETARCH=arm64
           cache-from: type=registry,ref=bailangvvking/wrk:arm64
-          # 关键修正：cache-to 必须是字符串值，而非对象
           cache-to: type=registry,ref=bailangvvking/wrk:arm64,mode=max
-          # attest 作为独立参数，保持正确缩进
-          attest:
-            type: provenance
-            mode: max
+          # 关键修正：attest 必须是字符串格式
+          attest: type=provenance,mode=max
 
       - name: Verify image
         run: |
