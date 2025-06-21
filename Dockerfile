@@ -30,8 +30,8 @@ RUN mkdir -p ThirdParty && \
 # 交叉编译 LuaJIT 2.1.0-beta3（确保生成 ARM64 架构）
 WORKDIR /src/ThirdParty/LuaJIT-2.1.0-beta3
 RUN make clean || true && \
-    # 明确指定 TARGET_ARCH=arm64
-    make HOST_CC="gcc" CROSS="${CROSS_COMPILE}" TARGET_SYS=Linux TARGET_ARCH=arm64 && \
+    # 主机工具使用宿主机编译器，目标程序使用交叉编译器
+    make HOST_CC="gcc" CROSS="${CROSS_COMPILE}" TARGET_SYS=Linux ARCH=arm64 && \
     make install PREFIX=/usr && \
     ln -sf /usr/bin/luajit-2.1.0-beta3 /usr/bin/luajit
 
