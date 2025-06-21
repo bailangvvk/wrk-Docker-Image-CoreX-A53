@@ -23,13 +23,16 @@ WORKDIR /src
 # 拉取 wrk 源码
 RUN git clone --depth=1 https://github.com/wg/wrk.git .
 
-# 下载 LuaJIT 2.1.0-beta3 源码（保留原始目录结构）
+# 下载 LuaJIT 2.1.0-beta3 源码（改用 Git 克隆，确保目录正确）
 RUN mkdir -p ThirdParty && \
-    curl -L https://github.com/LuaJIT/LuaJIT/archive/v2.1.0-beta3.tar.gz | \
-    tar -xz -C ThirdParty
+    git clone --depth=1 --branch v2.1.0-beta3 https://github.com/LuaJIT/LuaJIT.git ThirdParty/LuaJIT-2.1.0-beta3
 
-# 交叉编译 LuaJIT（使用正确的目录名：LuaJIT-2.1.0-beta3）
-WORKDIR /src/ThirdParty/LuaJIT-2.1.0-beta3  # 修正路径
+# 调试：检查 LuaJIT 目录结构
+RUN ls -la ThirdParty/LuaJIT-2.1.0-beta3/  # 新增：确认 Makefile 存在
+RUN cat ThirdParty/LuaJIT-2.1.0-beta3/Makefile 2>/dev/null || echo "Makefile not found!"
+
+# 交叉编译 LuaJIT
+WORKDIR /src/ThirdParty/LuaJIT-2.1.0-beta3
 RUN make clean || true && \
     make HOST_CC="gcc" CROSS="${CROSS_COMPILE}" TARGET_SYS=Linux TARGET=arm64 && \
     make install PREFIX=/usr/aarch64-linux-gnu
