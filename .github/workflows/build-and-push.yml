@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main  # 改为你的主分支名称
+      - main
 
 jobs:
   build-and-push:
@@ -23,7 +23,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
-          push: true  # 启用构建后推送
+          push: true
 
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
@@ -49,13 +49,12 @@ jobs:
             TARGETARCH: arm64
           cache-from: type=registry,ref=bailangvvking/wrk:arm64
           cache-to: type=registry,ref=bailangvvking/wrk:arm64,mode=max
-          # 启用构建时的 provenance 验证
           attest: type=provenance,mode=max
 
       - name: Verify image
         run: |
           docker pull bailangvvking/wrk:arm64
-          echo "=== wrk version ==="
+          echo "=== wrk version with LuaJIT ==="
           docker run --rm bailangvvking/wrk:arm64 -v
-          echo "=== Image architecture ==="
-          docker inspect --format='{{.Architecture}}' bailangvvking/wrk:arm64
+          echo "=== Check jit modules ==="
+          docker run --rm bailangvvking/wrk:arm64 luajit -e "require('jit') print('JIT module loaded')" || true
