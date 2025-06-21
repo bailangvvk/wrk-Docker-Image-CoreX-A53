@@ -49,12 +49,11 @@ jobs:
             TARGETARCH: arm64
           cache-from: type=registry,ref=bailangvvking/wrk:arm64
           cache-to: type=registry,ref=bailangvvking/wrk:arm64,mode=max
-          # 修正 attest 格式为对象
+          # 修正 attest 为标准映射格式（对象）
           attest:
             type: provenance
             mode: max
-            # builder-id: 可选参数，若不需要可移除
-            # builder-id: ${{ github.run_id }}
+            # builder-id: ${{ github.run_id }}  # 可选，若不需要可注释
 
       - name: Verify image
         run: |
