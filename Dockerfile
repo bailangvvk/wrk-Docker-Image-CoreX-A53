@@ -26,13 +26,13 @@ RUN git clone --depth=1 https://github.com/wg/wrk.git .
 # 下载 LuaJIT 2.1.0-beta3 源码
 RUN mkdir -p ThirdParty && \
     curl -L https://github.com/LuaJIT/LuaJIT/archive/v2.1.0-beta3.tar.gz | \
-    tar -xz -C ThirdParty --strip-components=1
+    tar -xz -C ThirdParty  # 移除 --strip-components=1 参数
 
 # 交叉编译 LuaJIT 2.1.0-beta3 for ARM64 (64位)
-WORKDIR /src/ThirdParty
-RUN make -C LuaJIT-2.1 clean || true && \
-    make -C LuaJIT-2.1 HOST_CC="gcc" CROSS="${CROSS_COMPILE}" TARGET_SYS=Linux TARGET=arm64 && \
-    make -C LuaJIT-2.1 install PREFIX=/usr/aarch64-linux-gnu
+WORKDIR /src/ThirdParty/LuaJIT-2.1  # 直接进入解压后的目录
+RUN make clean || true && \
+    make HOST_CC="gcc" CROSS="${CROSS_COMPILE}" TARGET_SYS=Linux TARGET=arm64 && \
+    make install PREFIX=/usr/aarch64-linux-gnu
 
 # 验证 LuaJIT 版本和架构
 RUN /usr/aarch64-linux-gnu/bin/luajit --version | grep "LuaJIT 2.1.0-beta3"
