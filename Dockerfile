@@ -10,8 +10,11 @@ ENV CROSS_COMPILE=aarch64-linux-gnu-
 ENV CC=${CROSS_COMPILE}gcc
 ENV LD=${CROSS_COMPILE}ld
 ENV STRIP=${CROSS_COMPILE}strip
+# 新增：设置 Lua 环境变量，确保找到 jit 模块
+ENV LUA_PATH="/usr/aarch64-linux-gnu/share/luajit-2.1.0-beta3/jit/?.lua;;"
+ENV LUA_CPATH="/usr/aarch64-linux-gnu/lib/lua/5.1/?.so;;"
 
-# 安装交叉编译工具及依赖（精简格式）
+# 安装交叉编译工具及依赖
 RUN apt-get update && apt-get install -y \
     build-essential git curl make nasm zip \
     gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
@@ -23,7 +26,7 @@ WORKDIR /src
 # 拉取 wrk 源码
 RUN git clone --depth=1 https://github.com/wg/wrk.git .
 
-# 下载 LuaJIT 2.1.0-beta3 源码（Git 克隆确保完整性）
+# 下载 LuaJIT 2.1.0-beta3 源码
 RUN mkdir -p ThirdParty && \
     git clone --depth=1 --branch v2.1.0-beta3 https://github.com/LuaJIT/LuaJIT.git ThirdParty/LuaJIT-2.1.0-beta3
 
@@ -35,13 +38,20 @@ RUN make clean || true && \
     # 创建符号链接以便识别为 luajit
     ln -sf /usr/aarch64-linux-gnu/bin/luajit-2.1.0-beta3 /usr/aarch64-linux-gnu/bin/luajit
 
-# 验证 LuaJIT 安装（版本和架构）
+# 验证 LuaJIT 安装（版本和模块路径）
 RUN /usr/aarch64-linux-gnu/bin/luajit -v | grep "LuaJIT 2.1.0-beta3"
 RUN file /usr/aarch64-linux-gnu/bin/luajit | grep "aarch64"
+RUN ls -la /usr/aarch64-linux-gnu/share/luajit-2.1.0-beta3/jit/  # 检查 jit 模块是否存在
 
-# 编译 wrk（添加 PATH 确保找到 luajit）
+# 编译 wrk（添加完整路径和环境变量）
 WORKDIR /src
 RUN export PATH="/usr/aarch64-linux-gnu/bin:$PATH" && \
+    export LUA_PATH="/usr/aarch64-linux-gnu/share/luajit-2.1.0-beta3/jit/?.lua;;" && \
+    export LUA_CPATH="/usr/aarch64-linux-gnu/lib/lua/5.1/?.so;;" && \
+    echo "=== 编译wrk前的PATH ===" && echo $PATH && \
+    echo "=== LUA_PATH ===" && echo $LUA_PATH && \
+    echo "=== LUA_CPATH ===" && echo $LUA_CPATH && \
+    which luajit && luajit -v && \
     make clean || true && \
     make CC=${CC} \
          WITH_LUAJIT=/usr/aarch64-linux-gnu \
@@ -50,7 +60,7 @@ RUN export PATH="/usr/aarch64-linux-gnu/bin:$PATH" && \
          SSL_INC="/usr/include/aarch64-linux-gnu" \
          SSL_LIB="/usr/lib/aarch64-linux-gnu"
 
-# 提取必要的依赖库（仅保留运行时需要的库）
+# 提取必要的依赖库
 RUN mkdir -p /deps && \
     ${CROSS_COMPILE}strip wrk && \
     cp wrk /deps/ && \
@@ -65,14 +75,20 @@ FROM alpine:3.19
 # 安装最小化运行时依赖
 RUN apk add --no-cache \
     libgcc libstdc++ \
-    openssl-libs  # 仅安装 OpenSSL 库，不含工具
+    openssl-libs
 
 # 复制编译好的 wrk 和依赖库
 COPY --from=builder /deps/ /usr/local/bin/
 
-# 验证镜像（确保 LuaJIT 集成和架构正确）
+# 同步 LuaJIT 的 jit 模块到运行时
+COPY --from=builder /usr/aarch64-linux-gnu/share/luajit-2.1.0-beta3/jit/ /usr/local/share/luajit-2.1.0-beta3/jit/
+COPY --from=builder /usr/aarch64-linux-gnu/lib/lua/5.1/ /usr/local/lib/lua/5.1/
+
+# 验证镜像
 RUN /usr/local/bin/wrk -v | grep "LuaJIT" && \
-    file /usr/local/bin/wrk | grep "aarch64"
+    file /usr/local/bin/wrk | grep "aarch64" && \
+    # 验证 jit 模块存在
+    ls -la /usr/local/share/luajit-2.1.0-beta3/jit/
 
 ENTRYPOINT ["/usr/local/bin/wrk"]
 CMD ["--help"]
