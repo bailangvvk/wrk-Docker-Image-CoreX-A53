@@ -36,11 +36,11 @@ WORKDIR /src/ThirdParty/LuaJIT-2.1.0-beta3
 RUN make clean || true && \
     make HOST_CC="gcc" CROSS="${CROSS_COMPILE}" TARGET_SYS=Linux TARGET=arm64 && \
     make install PREFIX=/usr/aarch64-linux-gnu && \
-    # 关键修改：创建 luajit 符号链接
+    # 创建符号链接
     ln -sf /usr/aarch64-linux-gnu/bin/luajit-2.1.0-beta3 /usr/aarch64-linux-gnu/bin/luajit
 
-# 验证 LuaJIT 版本（现在使用符号链接）
-RUN /usr/aarch64-linux-gnu/bin/luajit --version | grep "LuaJIT 2.1.0-beta3"
+# 验证 LuaJIT 版本（使用 -v 参数）
+RUN /usr/aarch64-linux-gnu/bin/luajit -v | grep "LuaJIT 2.1.0-beta3"
 RUN file /usr/aarch64-linux-gnu/bin/luajit | grep "aarch64"
 
 # 编译 wrk（确保引用符号链接）
